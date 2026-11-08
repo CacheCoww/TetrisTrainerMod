@@ -1,7 +1,29 @@
-import { showLiveHint, clearLiveHint } from "./live_hint_overlay.js";
+import {
+  showLiveHint,
+  clearLiveHint,
+  setShowNextHint,
+} from "./live_hint_overlay.js";
 
 export class LiveHintManager {
   constructor() {
+    const nextToggle = document.getElementById("live-hint-show-next");
+
+    if (nextToggle) {
+      const saved = localStorage.getItem("liveHintShowNext");
+
+      if (saved !== null) {
+        nextToggle.checked = saved === "true";
+      }
+
+      setShowNextHint(nextToggle.checked);
+
+      nextToggle.addEventListener("change", () => {
+        setShowNextHint(nextToggle.checked);
+
+        localStorage.setItem("liveHintShowNext", String(nextToggle.checked));
+      });
+    }
+
     this.worker = new Worker("./wasm/stackrabbit-worker.js");
     this.ready = false;
     this.generation = 0;
@@ -34,7 +56,10 @@ export class LiveHintManager {
 
           // With the next piece known, prefer the
           // next-piece adjustment recommendation.
-          const bestMove = result?.nextBox?.[0] ?? result?.noNextBox?.[0];
+          const bestMove =
+            result?.nextBox?.find((move) =>
+              Array.isArray(move.secondPlacement)
+            ) ?? result?.noNextBox?.[0];
 
           if (bestMove) {
             console.log("[LiveHint] Best move:", {
@@ -44,10 +69,17 @@ export class LiveHintManager {
               score: bestMove.playoutScore,
               fullMove: bestMove,
             });
-            showLiveHint(
+            console.log("[Coach] StackRabbit evaluation:", {
+              placement: bestMove.firstPlacement,
+              score: bestMove.playoutScore,
+              shallowScore: bestMove.shallowEvalScore,
+              evaluationFactors: bestMove.evalExplanation,
+            });
+            const cells = showLiveHint(
               bestMove,
               request.params.currentPiece,
-              request.params.board
+              request.params.board,
+              request.params.nextPiece
             );
           } else {
             console.warn("[LiveHint] No move found", result);
